@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>AI 미스터리 게임 - 채팅 프로토타입</title>
+<style>
+  body {
+    font-family: -apple-system, "Malgun Gothic", sans-serif;
+    max-width: 480px;
+    margin: 40px auto;
+    background: #f5f2ec;
+    color: #222;
+  }
+  h1 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+  #messages {
+    list-style: none;
+    padding: 12px;
+    margin: 0 0 12px 0;
+    height: 420px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+  }
+  #messages li {
+    margin-bottom: 10px;
+    line-height: 1.4;
+  }
+  #messages li .sender {
+    font-weight: bold;
+    margin-right: 6px;
+  }
+  #typing {
+    font-size: 13px;
+    color: #888;
+    height: 18px;
+    margin-bottom: 6px;
+  }
+  form {
+    display: flex;
+    gap: 8px;
+  }
+  #input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    background: #333;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <h1>AI 미스터리 게임 — 채팅 프로토타입</h1>
+  <ul id="messages"></ul>
+  <div id="typing"></div>
+  <form id="form">
+    <input id="input" autocomplete="off" placeholder="메시지를 입력하세요..." />
+    <button type="submit">전송</button>
+  </form>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const messages = document.getElementById('messages');
+    const typingEl = document.getElementById('typing');
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!input.value.trim()) return;
+      socket.emit('chat message', input.value);
+      input.value = '';
+    });
+
+    socket.on('chat message', (msg) => {
+      typingEl.textContent = '';
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="sender">${msg.sender}:</span>${msg.text}`;
+      messages.appendChild(li);
+      messages.scrollTop = messages.scrollHeight;
+    });
+
+    socket.on('typing', (info) => {
+      typingEl.textContent = `${info.sender}이(가) 입력 중...`;
+    });
+  </script>
+</body>
+</html>
