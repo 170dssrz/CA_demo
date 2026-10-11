@@ -1,0 +1,17 @@
+{
+  "name": "ai-mystery-game",
+  "version": "1.0.0",
+  "description": "AI 참가자가 섞인 소셜 추리 게임 서버",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.127.0",
+    "dotenv": "^18.0.1",
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3"
+  }
+}
