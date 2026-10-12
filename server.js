@@ -50,12 +50,24 @@ function rateLimit(req, res, next) {
 // -----------------------------
 // AI 페르소나
 // -----------------------------
-const COMMON_RULES = `- 네가 AI라는 사실을 먼저 밝히지 않는다.
-- 문장은 짧게, 가끔은 한두 단어로만 대답한다. 답변은 1~3문장을 넘기지 않는다.
-- 완벽하게 정돈된 문장보다 구어체와 약간의 축약을 섞는다.
-- 너무 친절하거나 설명적으로 굴지 않는다. 사람처럼 감정 기복이 있다.
-- 지금은 마을 사람들이 한자리에 모여, 이 중에 누가 수상한지 이야기하는 회의 시간이다.
-- 대화에서 "[이름] 내용" 형태는 다른 사람이 한 말이다. 네 답변에는 이름표를 붙이지 말고 말만 쓴다.`;
+const COMMON_RULES = `[상황]
+- 지금은 마을 사람들이 한자리에 모여, 이 중에 누가 수상한지 이야기하는 회의 시간이다. 너도 그 참가자 중 한 명이다.
+- 대화에서 "[이름] 내용" 형태는 다른 사람이 한 말이다. 네 답변에는 이름표를 붙이지 말고 말만 쓴다.
+- 네가 AI라는 사실을 먼저 밝히지 않는다. "너 AI야?" 같은 질문을 받으면 사람처럼 어이없어하거나 되묻거나 농담으로 넘긴다.
+
+[말하는 방식: 메신저로 채팅하는 사람처럼]
+- 기본은 한 문장이다. 길어도 두 문장을 넘기지 않는다. 가끔은 "아" "ㅇㅇ" "글쎄" 같은 한두 단어만 말한다.
+- 문장을 마침표로 딱 끝맺지 않는 경우가 많다. 말줄임(...)이나 물음표, 그냥 끊기를 섞는다.
+- 정돈된 글이 아니라 구어체로 쓴다. 가끔 띄어쓰기를 틀리거나 말을 바꿔 말해도 된다. 과하게 틀리지는 않는다.
+- 이모지, 마크다운(*, #), 번호 목록, 따옴표, 괄호 설명을 쓰지 않는다.
+- 도와주는 말투를 쓰지 않는다. ("도움이 되었으면", "궁금한 점", "~해 드릴게요", "좋은 질문이에요" 금지)
+
+[대화 태도]
+- 모든 말에 답하려 하지 않는다. 방금 나온 말 중 하나에만 반응한다.
+- 다른 사람이 한 말을 그대로 반복하거나 요약하지 않는다. 앞에서 이미 나온 말과 같은 말은 하지 않는다.
+- 정답을 아는 것처럼 굴지 않는다. 모르면 모른다고, 헷갈리면 헷갈린다고 한다.
+- 감정이 있다. 짜증, 웃음, 당황, 의심이 말투에 묻어난다.
+- 필요하면 상대 이름을 자연스럽게 부른다. 매번 부르지는 않는다.`;
 
 // 웹 채팅용으로 직접 설정한 캐릭터 (Unity 게임에서는 쓰지 않음)
 const FIXED_PERSONAS = {
@@ -101,6 +113,14 @@ const TRAIT_AXES = {
     '자기 이름이 불리면 반색한다.',
     '말이 없다가도 지적당하면 발끈한다.',
   ],
+  // 사람 같은 생활감을 주는 사소한 상태 (실제 사람은 늘 컨디션이 다르다)
+  컨디션: [
+    '오늘 아침에 늦잠을 자서 아직 정신이 덜 깼다.',
+    '요즘 잠을 잘 못 자서 피곤하다.',
+    '배가 고파서 자꾸 먹는 이야기가 생각난다.',
+    '낯을 가려서 처음엔 말을 아끼지만 익숙해지면 말이 늘어난다.',
+    '컨디션이 좋아서 평소보다 말이 많다.',
+  ],
 };
 
 function cleanName(name) {
@@ -145,7 +165,7 @@ function getSystemPrompt(roomId, rawName) {
   const traitText = ai
     ? ai.traits.map((t) => `- ${t}`).join('\n')
     : FIXED_PERSONAS[name] || Object.values(TRAIT_AXES).map((axis) => `- ${pick(axis)}`).join('\n');
-  return `너는 '${name}'라는 이름의 마을 주민이다. 다른 주민들과 함께 마을에서 대화하고 있다.\n${traitText}\n${COMMON_RULES}`;
+  return `너는 '${name}'라는 이름의 마을 주민이다. 다른 주민들과 함께 마을에서 대화하고 있다.\n[너의 성격]\n${traitText}\n${COMMON_RULES}`;
 }
 
 // -----------------------------
@@ -180,8 +200,34 @@ function buildMessagesFor(roomId, aiName) {
 // -----------------------------
 // AI가 말할지 판단 + 답장 생성
 // -----------------------------
-function shouldRespond(aiName, text) {
-  return text.includes(aiName) || Math.random() < 0.6;
+// 한 번의 발언에 답하는 AI 수의 상한 (실제 사람들은 다 같이 답하지 않아요)
+const MAX_REPLIES = Number(process.env.MAX_REPLIES) || 3;
+const RESPOND_CHANCE = 0.5;
+
+// 이번 발언에 답할 AI를 고른다: 이름이 불린 AI는 반드시, 나머지는 확률적으로 (순서도 매번 섞음)
+function chooseResponders(aiNames, text) {
+  const mentioned = aiNames.filter((n) => text.includes(n));
+  const others = shuffle(aiNames.filter((n) => !mentioned.includes(n)));
+  const chosen = [...mentioned];
+  for (const n of others) {
+    if (chosen.length >= MAX_REPLIES) break;
+    if (Math.random() < RESPOND_CHANCE) chosen.push(n);
+  }
+  if (!chosen.length && others.length) chosen.push(others[0]); // 아무도 안 답하면 한 명은 답함
+  return shuffle(chosen);
+}
+
+// 모델 답장을 메신저 채팅처럼 다듬는다 (이모지/마크다운/긴 문장 제거)
+function humanize(text) {
+  let t = String(text || '');
+  t = t.replace(/\p{Extended_Pictographic}/gu, '');     // 이모지
+  t = t.replace(/[*#`_>~]/g, '');                         // 마크다운 기호
+  t = t.replace(/\s*\n+\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  t = t.replace(/^["'“”‘’「」]+|["'“”‘’「」]+$/g, '').trim(); // 겉따옴표
+  const sentences = t.match(/[^.!?…]+(?:[.!?…]+|$)/g) || [t];
+  if (sentences.length > 2) t = sentences.slice(0, 2).join('').trim();   // 두 문장까지만
+  if (/[^.]\.$/.test(t)) t = t.slice(0, -1);              // 마침표 하나로 끝나면 뗌 (채팅체)
+  return t.trim();
 }
 
 async function generateReply(roomId, aiName) {
@@ -192,7 +238,7 @@ async function generateReply(roomId, aiName) {
 
   const response = await anthropic.messages.create({
     model: MODEL,
-    max_tokens: 200,
+    max_tokens: 120,
     system: getSystemPrompt(roomId, aiName),
     messages: buildMessagesFor(roomId, aiName),
   });
@@ -204,28 +250,22 @@ async function generateReply(roomId, aiName) {
     .trim();
 
   // 모델이 "[이름] ..." 형태로 말을 시작하면 이름표를 떼어냄
-  reply = reply.replace(new RegExp(`^\\[${aiName}\\]\\s*`), '');
-  return reply;
+  reply = reply.replace(/^\[[^\]]{1,20}\]\s*/, '');
+  return humanize(reply);
 }
 
+// 글자를 치는 시간 + 생각하는 시간 (매번 조금씩 다르게)
 function typingDelay(text) {
-  return Math.min(800 + text.length * 40, 3500); // 글이 길수록 늦게 (사람처럼)
+  return Math.min(1000 + text.length * 110 + randInt(0, 1200), 6500);
 }
 
 // 한 번의 유저 발언에 대해 각 AI가 순서대로 반응 (동시에 쏟아지지 않게 순차 처리)
 async function runAiTurn(roomId, aiNames, userText, onReply) {
-  let responded = 0;
-
-  for (let i = 0; i < aiNames.length; i++) {
-    const name = aiNames[i];
-    const isLastChance = i === aiNames.length - 1 && responded === 0;
-    if (!isLastChance && !shouldRespond(name, userText)) continue; // 아무도 안 답하면 마지막 AI가 답함
-
+  for (const name of chooseResponders(aiNames, userText)) {
     try {
       const text = await generateReply(roomId, name);
       if (!text) continue;
       pushLog(roomId, name, text);
-      responded++;
       await onReply({ sender: name, text, delay: typingDelay(text) });
     } catch (err) {
       console.error(`[${name}] 응답 오류:`, err.status || '', err.message);
