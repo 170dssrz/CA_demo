@@ -1,3 +1,28 @@
-node_modules
+# Git 백업
+CA_server_git_backup/
+
+# 비밀 정보
 .env
-data/
+.env.*
+!.env.example
+
+# Node.js
+node_modules/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Unity
+Library/
+Temp/
+Obj/
+Build/
+Builds/
+Logs/
+UserSettings/
+
+# IDE
+.vs/
