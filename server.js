@@ -12,6 +12,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const Anthropic = require('@anthropic-ai/sdk');
+const { createPythonGame } = require('./pythonClient');
 
 const app = express();
 const server = http.createServer(app);
@@ -608,6 +609,57 @@ setInterval(() => {
 // -----------------------------
 // Unity용 HTTP API
 // -----------------------------
+
+app.post('/api/python-test', async (req, res) => {
+  try {
+    const game = await createPythonGame();
+
+    console.log('Python 게임 생성 성공:', game.game_id);
+
+    res.json({
+      ok: true,
+      game: game
+    });
+  } catch (error) {
+    console.error('Python 연결 실패:', error.message);
+
+    res.status(502).json({
+      ok: false,
+      error: 'Python 서버 연결에 실패했습니다.'
+    });
+  }
+});
+
+
+app.post('/api/game/create', async (req, res) => {
+  try {
+    const game = await createPythonGame();
+
+    console.log(
+      '[Game] Python 게임 생성 성공:',
+      game.game_id
+    );
+
+    res.json({
+      ok: true,
+      game: game
+    });
+
+  } catch (error) {
+    console.error(
+      '[Game] 생성 실패:',
+      error.message
+    );
+
+    res.status(502).json({
+      ok: false,
+      error: 'Python 게임 생성에 실패했습니다.'
+    });
+  }
+});
+
+
+
 app.get('/api/health', (req, res) => {
   const roomId = getRoomId(req.query.roomId);
   res.json({
