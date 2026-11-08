@@ -10,7 +10,7 @@ using UnityEngine.Networking;
 public class GameServer : MonoBehaviour
 {
     [Header("서버")]
-    public string serverUrl = "http://localhost:3000";   // 배포 후엔 https://내서비스.onrender.com
+    public string serverUrl = "https://ai-backend-fmrg.onrender.com";   // 배포 후엔 https://내서비스.onrender.com
     public string roomId = "main";
     public string myName = "나";
 

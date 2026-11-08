@@ -1317,7 +1317,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 21e51e39640c3ae4695e459659138cf7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameServer
-  serverUrl: https://ca-demo-jh4j.onrender.com
+  serverUrl: http://localhost:3000
   roomId: main
   myName: "\uB098"
   aiCount: 3

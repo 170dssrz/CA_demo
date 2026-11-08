@@ -79,22 +79,35 @@ function rateLimit(req, res, next) {
 // -----------------------------
 // AI 페르소나
 // -----------------------------
+// Python Seed Persona와 동일한 설정 파일을 Node 채팅에서도 읽는다.
+const SEED_PERSONA_FILE = path.join(__dirname, '..', 'AI_backend', 'data', 'seed_personas.json');
+function loadSeedPersonas() {
+  try {
+    const data = JSON.parse(fs.readFileSync(SEED_PERSONA_FILE, 'utf8'));
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.warn('Seed Persona를 읽지 못해 기존 성격을 사용합니다:', e.message);
+    return [];
+  }
+}
+
 const COMMON_RULES = `[상황]
 - 지금은 마을 사람들이 한자리에 모여, 이 중에 누가 수상한지 이야기하는 회의 시간이다. 너도 그 참가자 중 한 명이다.
 - 대화에서 "[이름] 내용" 형태는 다른 사람이 한 말이다. 네 답변에는 이름표를 붙이지 말고 말만 쓴다.
 - 네가 AI라는 사실을 먼저 밝히지 않는다. "너 AI야?" 같은 질문을 받으면 사람처럼 어이없어하거나 되묻거나 농담으로 넘긴다.
 
 [말하는 방식: 메신저로 채팅하는 사람처럼]
-- 기본은 한 문장이다. 길어도 두 문장을 넘기지 않는다. 가끔은 "아" "ㅇㅇ" "글쎄" 같은 한두 단어만 말한다.
-- 문장을 마침표로 딱 끝맺지 않는 경우가 많다. 말줄임(...)이나 물음표, 그냥 끊기를 섞는다.
+- 대답의 길이와 말투는 자신의 성격과 상황에 맞춘다. 짧은 반응도, 필요한 경우 3~4문장의 해명도 자연스럽다.
+- 마침표, 물음표, 말줄임표를 억지로 섞지 않는다. 실제 대화의 흐름에 맞춰 쓴다.
 - 정돈된 글이 아니라 구어체로 쓴다. 가끔 띄어쓰기를 틀리거나 말을 바꿔 말해도 된다. 과하게 틀리지는 않는다.
 - 이모지, 마크다운(*, #), 번호 목록, 따옴표, 괄호 설명을 쓰지 않는다.
 - 도와주는 말투를 쓰지 않는다. ("도움이 되었으면", "궁금한 점", "~해 드릴게요", "좋은 질문이에요" 금지)
 
 [대화 태도]
-- 모든 말에 답하려 하지 않는다. 방금 나온 말 중 하나에만 반응한다.
+- 네 이름이 불리거나 직접 질문받으면 먼저 그 질문에 답한다. 다른 상황에서는 네 성향에 따라 반응한다.
 - 다른 사람이 한 말을 그대로 반복하거나 요약하지 않는다. 앞에서 이미 나온 말과 같은 말은 하지 않는다.
-- 정답을 아는 것처럼 굴지 않는다. 모르면 모른다고, 헷갈리면 헷갈린다고 한다.
+- 정답을 아는 것처럼 굴지 않는다. 모르면 모른다고 하되, 이미 아는 사실에 대한 질문을 회피하지 않는다.
+- 실제로 전달받지 않은 위치, 목격, 직업, 투표 등의 게임 사실을 만들어내지 않는다. 알 수 없으면 확인이 필요하다고 말한다.
 - 감정이 있다. 짜증, 웃음, 당황, 의심이 말투에 묻어난다.
 - 필요하면 상대 이름을 자연스럽게 부른다. 매번 부르지는 않는다.`;
 
@@ -109,8 +122,7 @@ const FIXED_PERSONAS = {
 // ★ AI를 하나씩 코드에 적는 대신, 아래 조각들을 무작위로 조합해서 AI를 만든다.
 //   조각을 늘리면 AI가 더 다양해지고, 코드를 고칠 필요는 없다. (5 x 5 x 5 x 5 = 625가지 성격)
 const NAME_POOL = [
-  '소라', '도윤', '지안', '유나', '하준', '서연', '민재', '예은', '태오', '다은',
-  '시우', '나래', '재현', '은서', '현우', '보람', '지호', '채원', '준서', '아린',
+  '소라', '도윤', '지안'
 ];
 
 const TRAIT_AXES = {
@@ -211,6 +223,7 @@ function makeRoster(count, spriteCount) {
   const axes = file.axes && Object.keys(file.axes).length ? file.axes : TRAIT_AXES;
   const goals = toArr(file.goals).length ? toArr(file.goals) : GOALS;
   const cards = shuffle(Array.isArray(file.characters) ? file.characters : []);
+  const seeds = shuffle(loadSeedPersonas());
 
   const n = Math.min(count > 0 ? count : randInt(MIN_AI, MAX_AI), 8, NAME_POOL.length);
   const sprites = shuffle([...Array(Math.max(spriteCount, 1)).keys()]); // 이미지가 충분하면 겹치지 않게
@@ -233,8 +246,12 @@ function makeRoster(count, spriteCount) {
       traits = Object.values(axes).map(pick); // 축마다 하나씩 뽑아 조합
     }
 
+    const seed = seeds[i % (seeds.length || 1)];
+    if (seed) traits.push(seed.description);
+
     return {
       name,
+      seedPersona: seed || null,
       spriteIndex: sprites[i % sprites.length],
       traits,
       examples: card ? toArr(card.예시대사).slice(0, 8) : [], // 이 사람이 실제로 쓸 법한 말 (말투 학습용)
@@ -256,11 +273,13 @@ function getSystemPrompt(roomId, rawName, query = '') {
   const traitText = ai
     ? ai.traits.map((t) => `- ${t}`).join('\n')
     : FIXED_PERSONAS[name] || Object.values(TRAIT_AXES).map((axis) => `- ${pick(axis)}`).join('\n');
+  const seed = ai && ai.seedPersona;
+  const seedText = seed ? `[너의 대화 성향]\n- 말투: ${seed.speech_style?.tone || ''}\n- 반응 습관: ${seed.speech_style?.response_habit || ''}\n- 판단 방식: ${seed.conversation_behavior?.reasoning || ''}\n- 압박받을 때: ${seed.conversation_behavior?.under_pressure || ''}\n` : '';
   const mind = ai ? buildMind(roomId, ai, query) : '';
   const ex = ai && ai.examples && ai.examples.length
     ? `[네가 평소 쓰는 말투 예시: 그대로 베끼지 말고 이런 느낌으로 말한다]\n${ai.examples.map((e) => `- ${e}`).join('\n')}\n`
     : '';
-  return `너는 '${name}'라는 이름의 마을 주민이다. 다른 주민들과 함께 마을에서 대화하고 있다.\n[너의 성격]\n${traitText}\n${ex}${mind}${COMMON_RULES}`;
+  return `너는 '${name}'라는 이름의 마을 주민이다. 다른 주민들과 함께 마을에서 대화하고 있다.\n[너의 성격]\n${traitText}\n${seedText}${ex}${mind}${COMMON_RULES}`;
 }
 
 // -----------------------------
@@ -448,19 +467,27 @@ async function callClaude({ model, system, messages, max_tokens }) {
 // -----------------------------
 // 한 번의 발언에 답하는 AI 수의 상한 (실제 사람들은 다 같이 답하지 않아요)
 const MAX_REPLIES = Number(process.env.MAX_REPLIES) || 3;
-const RESPOND_CHANCE = 0.5;
+const RESPOND_CHANCE = 0.35;
 
-// 이번 발언에 답할 AI를 고른다: 이름이 불린 AI는 반드시, 나머지는 확률적으로 (순서도 매번 섞음)
-function chooseResponders(aiNames, text) {
+// 지목된 AI는 우선, 나머지는 성격의 주도성에 따라 참여한다.
+function chooseResponders(aiNames, text, roomId) {
   const mentioned = aiNames.filter((n) => text.includes(n));
+  const roster = rosters.get(roomId) || [];
   const others = shuffle(aiNames.filter((n) => !mentioned.includes(n)));
-  const chosen = [...mentioned];
+  const chosen = mentioned.slice(0, MAX_REPLIES);
   for (const n of others) {
     if (chosen.length >= MAX_REPLIES) break;
-    if (Math.random() < RESPOND_CHANCE) chosen.push(n);
+    const ai = roster.find((a) => a.name === n);
+    const initiative = ai?.seedPersona?.conversation_behavior?.initiative;
+    const chance = typeof initiative === 'number'
+      ? Math.min(0.7, Math.max(0.15, RESPOND_CHANCE + (initiative - 0.5) * 0.4))
+      : RESPOND_CHANCE;
+    if (Math.random() < chance) chosen.push(n);
   }
-  if (!chosen.length && others.length) chosen.push(others[0]); // 아무도 안 답하면 한 명은 답함
-  return shuffle(chosen);
+  if (!chosen.length && others.length) chosen.push(others[0]);
+  // 직접 지목된 사람은 다른 사람보다 먼저 답한다.
+  return [...mentioned.filter((n) => chosen.includes(n)),
+    ...shuffle(chosen.filter((n) => !mentioned.includes(n)))];
 }
 
 // 모델 답장을 메신저 채팅처럼 다듬는다 (이모지/마크다운/긴 문장 제거)
@@ -470,9 +497,6 @@ function humanize(text) {
   t = t.replace(/[*#`_>~]/g, '');                         // 마크다운 기호
   t = t.replace(/\s*\n+\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
   t = t.replace(/^["'“”‘’「」]+|["'“”‘’「」]+$/g, '').trim(); // 겉따옴표
-  const sentences = t.match(/[^.!?…]+(?:[.!?…]+|$)/g) || [t];
-  if (sentences.length > 2) t = sentences.slice(0, 2).join('').trim();   // 두 문장까지만
-  if (/[^.]\.$/.test(t)) t = t.slice(0, -1);              // 마침표 하나로 끝나면 뗌 (채팅체)
   return t.trim();
 }
 
@@ -494,7 +518,7 @@ async function generateReply(roomId, aiName, opts = {}) {
 
   let reply = await callClaude({
     model: MODEL,
-    max_tokens: 120,
+    max_tokens: 512,
     system: getSystemPrompt(roomId, aiName, query),
     messages,
   });
@@ -529,15 +553,19 @@ async function runAiTurn(roomId, aiNames, userText, onReply) {
 
 async function runAiTurnInner(roomId, aiNames, userText, onReply) {
   let errors = 0;
-  for (const name of chooseResponders(aiNames, userText)) {
+  for (const name of chooseResponders(aiNames, userText, roomId)) {
     try {
       const text = await generateReply(roomId, name);
-      if (!text) continue;
+      if (!text) {
+        console.warn(`[${name}] Claude 응답이 비어 있습니다`);
+        errors++;
+        continue;
+      }
       pushLog(roomId, name, text);
       await onReply({ sender: name, text, delay: typingDelay(text) });
     } catch (err) {
       errors++;
-      console.error(`[${name}] 응답 오류:`, err.status || '', err.message);
+      console.error(`[${name}] 응답 오류:`, err);
     }
   }
   return errors; // 호출이 실패한 AI 수 (전부 실패했는지 알려 주려고)
