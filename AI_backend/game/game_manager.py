@@ -39,7 +39,7 @@ class GameManager:
             <= count
             <= self.config.max_players
         ):
-             ValueError("플레이어 수가 올바르지 않습니다.")
+            raise ValueError("플레이어 수가 올바르지 않습니다.")
 
         # 게임 시작 전 직업 배정
         self.roles.assign_roles(mafia_count)

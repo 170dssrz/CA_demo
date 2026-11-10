@@ -24,7 +24,15 @@ public class GameServer : MonoBehaviour
     public float checkInterval = 5f;
 
     // 서버와 주고받는 JSON 형식
-    [Serializable] public class AiData { public string name; public int spriteIndex; }
+    
+    [Serializable]
+    public class AiData
+    {
+        public string playerId;
+        public string name;
+        public int spriteIndex;
+    }
+
     [Serializable] public class RosterRequest { public string roomId; public int count; public int spriteCount; }
     [Serializable] public class RosterResponse { public AiData[] roster; }
     
@@ -73,11 +81,11 @@ public class GameServer : MonoBehaviour
 
         starting = true;
 
-        // 기존 Node.js AI 명단 생성
+
         yield return NewGame();
 
-        // 새로 추가: Python 게임 엔진 연결 테스트
-        yield return CreatePythonGame();
+        // 게임은 /api/roster에서 이미 생성하므로
+        // CreatePythonGame()을 다시 호출하지 않는다.
 
         starting = false;
     }
@@ -199,9 +207,20 @@ public class GameServer : MonoBehaviour
                 yield break;
             }
 
+            
             currentRoster = res.roster;
+
+            foreach (var ai in currentRoster)
+            {
+                Debug.Log(
+                    "[AI Roster] ID: " + ai.playerId +
+                    " / 이름: " + ai.name
+                );
+            }
+
             spawner.SpawnFromRoster(res.roster);
             SetStatus("");
+
         }
     }
 

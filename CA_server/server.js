@@ -12,7 +12,16 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const Anthropic = require('@anthropic-ai/sdk');
-const { createPythonGame } = require('./pythonClient');
+
+const {
+  createPythonGame,
+  startPythonMeeting,
+  startPythonVoting,
+  submitPythonVote,
+  finalizePythonVoting,
+  getPythonGameState
+} = require('./pythonClient');
+
 
 const app = express();
 const server = http.createServer(app);
@@ -186,6 +195,9 @@ const MIN_AI = Number(process.env.MIN_AI) || 4; // 인원수를 따로 안 정�
 const MAX_AI = Number(process.env.MAX_AI) || 4;
 const rosters = new Map(); // roomId -> [{ name, spriteIndex, traits, goal, memory, relations, ... }]
 
+const gameIds = new Map(); // roomId -> Python game_id
+
+
 // 각 AI가 속으로만 품는 목표 (플레이어에겐 안 보임). 이게 "먼저 행동하는 이유"가 된다.
 const GOALS = [
   '이번 회의에서 한 명을 집요하게 의심해 보고 싶다. 근거는 대화 속에서 찾는다.',
@@ -265,7 +277,43 @@ function makeRoster(count, spriteCount) {
   });
 }
 
-const publicRoster = (roster) => roster.map(({ name, spriteIndex }) => ({ name, spriteIndex }));
+
+const publicRoster = (roster) =>
+  roster.map(({ playerId, name, spriteIndex }) => ({
+    playerId: playerId || null,
+    name,
+    spriteIndex
+  }));
+
+
+
+function rosterFromPython(aiCharacters, spriteCount) {
+  const sprites = shuffle(
+    [...Array(Math.max(spriteCount, 1)).keys()]
+  );
+
+  return aiCharacters.map((character, i) => {
+    const seed = character.personality;
+
+    return {
+      playerId: character.player_id,
+      name: cleanName(character.name),
+      seedPersona: seed,
+      spriteIndex: sprites[i % sprites.length],
+
+      traits: [seed.description],
+      examples: [],
+      goal: pick(GOALS),
+
+      memory: [],
+      relations: {},
+      pending: 0,
+      reflecting: false,
+      lastSpokeAt: 0
+    };
+  });
+}
+
 
 function getSystemPrompt(roomId, rawName, query = '') {
   const name = cleanName(rawName);
@@ -703,21 +751,260 @@ app.get('/api/health', (req, res) => {
 
 const getRoomId = (v) => String(v || 'main').slice(0, 40);
 
+
+// Python 게임 엔진에서 회의 시작
+app.post('/api/game/meeting/start', async (req, res) => {
+  const body = req.body || {};
+  const roomId = getRoomId(body.roomId);
+  const callerId = body.callerId;
+  const reason = body.reason || 'emergency';
+
+  const gameId = gameIds.get(roomId);
+
+  if (!gameId) {
+    return res.status(404).json({
+      ok: false,
+      error: '이 방에 연결된 Python 게임이 없습니다.'
+    });
+  }
+
+  if (!callerId) {
+    return res.status(400).json({
+      ok: false,
+      error: 'callerId가 필요합니다.'
+    });
+  }
+
+  try {
+    const result = await startPythonMeeting(
+      gameId,
+      callerId,
+      reason
+    );
+
+    res.json({
+      ok: true,
+      ...result
+    });
+
+  } catch (error) {
+    console.error(
+      '[Game] 회의 시작 실패:',
+      error.message
+    );
+
+    res.status(502).json({
+      ok: false,
+      error: 'Python 회의 시작 요청에 실패했습니다.',
+      detail: error.message
+    });
+  }
+});
+
+
+// Python 게임 엔진에서 투표 시작
+app.post('/api/game/voting/start', async (req, res) => {
+  const body = req.body || {};
+  const roomId = getRoomId(body.roomId);
+  const gameId = gameIds.get(roomId);
+
+  if (!gameId) {
+    return res.status(404).json({
+      ok: false,
+      error: '이 방에 연결된 Python 게임이 없습니다.'
+    });
+  }
+
+  try {
+    const result = await startPythonVoting(gameId);
+
+    res.json({
+      ok: true,
+      ...result
+    });
+
+  } catch (error) {
+    console.error('[Game] 투표 시작 실패:', error.message);
+
+    res.status(502).json({
+      ok: false,
+      error: 'Python 투표 시작 요청에 실패했습니다.',
+      detail: error.message
+    });
+  }
+});
+
+
+ // Python 게임 엔진에 투표 제출
+app.post('/api/game/vote', async (req, res) => {
+  const body = req.body || {};
+  const roomId = getRoomId(body.roomId);
+  const gameId = gameIds.get(roomId);
+
+  const voterId = body.voterId;
+  const targetId = body.targetId;
+
+  if (!gameId) {
+    return res.status(404).json({
+      ok: false,
+      error: '이 방에 연결된 Python 게임이 없습니다.'
+    });
+  }
+
+  if (!voterId || !targetId) {
+    return res.status(400).json({
+      ok: false,
+      error: 'voterId와 targetId가 필요합니다.'
+    });
+  }
+
+  try {
+    const result = await submitPythonVote(
+      gameId,
+      voterId,
+      targetId
+    );
+
+    return res.json({
+      ok: true,
+      ...result
+    });
+
+  } catch (error) {
+    console.error('[Game] 투표 제출 실패:', error.message);
+
+    return res.status(502).json({
+      ok: false,
+      error: 'Python 투표 제출 요청에 실패했습니다.',
+      detail: error.message
+    });
+  }
+});
+
+
+ // 투표 집계, 추방 및 승패 판정
+app.post('/api/game/voting/finalize', async (req, res) => {
+  const roomId = getRoomId((req.body || {}).roomId);
+  const gameId = gameIds.get(roomId);
+
+  if (!gameId) {
+    return res.status(404).json({
+      ok: false,
+      error: '연결된 Python 게임이 없습니다.'
+    });
+  }
+
+  try {
+    const result = await finalizePythonVoting(gameId);
+
+    return res.json({
+      ok: true,
+      ...result
+    });
+
+  } catch (error) {
+    console.error('[Game] 투표 집계 실패:', error.message);
+
+    return res.status(502).json({
+      ok: false,
+      error: '투표 집계에 실패했습니다.',
+      detail: error.message
+    });
+  }
+});
+
+
+// 현재 게임 상태 조회
+app.get('/api/game/state', async (req, res) => {
+  const roomId = getRoomId(req.query.roomId);
+  const gameId = gameIds.get(roomId);
+
+  if (!gameId) {
+    return res.status(404).json({
+      ok: false,
+      error: '연결된 Python 게임이 없습니다.'
+    });
+  }
+
+  try {
+    const result = await getPythonGameState(gameId);
+
+    return res.json({
+      ok: true,
+      ...result
+    });
+
+  } catch (error) {
+    console.error('[Game] 상태 조회 실패:', error.message);
+
+    return res.status(502).json({
+      ok: false,
+      error: '게임 상태 조회에 실패했습니다.',
+      detail: error.message
+    });
+  }
+});
+
+
 // 새 게임 시작: AI를 무작위로 만들어 방에 배정 (이름/성격/이미지/인원수 전부 랜덤)
 //   body: { roomId, count(0이면 서버가 랜덤), spriteCount(Unity에 있는 캐릭터 이미지 수) }
-app.post('/api/roster', rateLimit, (req, res) => {
+
+app.post('/api/roster', rateLimit, async (req, res) => {
   const body = req.body || {};
   const roomId = getRoomId(body.roomId);
   const count = Math.max(0, Math.min(parseInt(body.count, 10) || 0, 8));
-  const spriteCount = Math.max(1, Math.min(parseInt(body.spriteCount, 10) || 1, 50));
+  const spriteCount = Math.max(
+    1,
+    Math.min(parseInt(body.spriteCount, 10) || 1, 50)
+  );
 
-  const roster = makeRoster(count, spriteCount);
+  const aiCount = count > 0 ? count : randInt(MIN_AI, MAX_AI);
+
+  let game;
+  let roster;
+
+  try {
+    game = await createPythonGame(aiCount, 1);
+
+    if (!game.game_id ||
+        !Array.isArray(game.ai_characters) ||
+        game.ai_characters.length === 0) {
+      throw new Error('Python 게임 생성 응답이 올바르지 않습니다.');
+    }
+
+    roster = rosterFromPython(
+      game.ai_characters,
+      spriteCount
+    );
+
+  } catch (error) {
+    console.error('[Roster] Python 게임 생성 실패:', error.message);
+
+    return res.status(502).json({
+      error: 'Python 게임 생성에 실패했습니다.'
+    });
+  }
+
+  // Python 게임 ID와 Unity 방 ID 연결
+  gameIds.set(roomId, game.game_id);
+
+  // Python 캐릭터를 Node.js에 등록
   rosters.set(roomId, roster);
-  logs.delete(roomId); // 새 게임이니 이전 대화는 지움
+
+  // 새 게임이므로 이전 대화와 회의 정보 초기화
+  logs.delete(roomId);
   meetings.delete(roomId);
 
-  res.json({ roster: publicRoster(roster) });
+  console.log(
+    `[Game] 방: ${roomId}, 게임: ${game.game_id}, AI: ${roster.length}명`
+  );
+
+  res.json({
+    roster: publicRoster(roster),
+    game_id: game.game_id
+  });
 });
+
 
 // 명단 복구: 서버가 재시작되어 명단이 사라졌을 때, Unity가 화면에 있는 AI의 이름/이미지 번호를 다시 알려 줌
 // (이름과 겉모습은 그대로 유지하고, 성격과 기억은 새로 만들어짐. 이미 명단이 있으면 덮어쓰지 않음)
@@ -884,7 +1171,11 @@ function saveState() {
   try {
     if (!rosters.size) return;
     fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
-    const data = { rosters: [...rosters], logs: [...logs] };
+    const data = {
+  rosters: [...rosters],
+  logs: [...logs],
+  gameIds: [...gameIds]
+};
     fs.writeFileSync(STATE_FILE + '.tmp', JSON.stringify(data));
     fs.renameSync(STATE_FILE + '.tmp', STATE_FILE); // 쓰다가 꺼져도 파일이 깨지지 않게
   } catch (e) {
@@ -897,6 +1188,7 @@ function loadState() {
     const data = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
     for (const [k, v] of data.rosters || []) rosters.set(k, v.map((a) => ({ ...a, reflecting: false })));
     for (const [k, v] of data.logs || []) logs.set(k, v);
+    for (const [k, v] of data.gameIds || []) gameIds.set(k, v);
     console.log(`저장된 상태를 불러왔어요 (방 ${rosters.size}개)`);
   } catch (e) {
     if (e.code !== 'ENOENT') console.error('저장된 상태를 읽지 못해 새로 시작합니다:', e.message);
