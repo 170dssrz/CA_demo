@@ -35,11 +35,24 @@ games = {}
 @app.post("/games")
 def create_game(request: CreateGameRequest):
     try:
+        
         factory = AgentFactory()
+
+        print(
+            f"[Game Create] ai_count={request.ai_count}, "
+            f"mafia_count={request.mafia_count}",
+            flush=True
+        )
 
         players, agents = factory.create_agents(
             request.ai_count
         )
+
+        print(
+            f"[Game Create] AgentFactory 성공: {len(players)}명",
+            flush=True
+        )
+
 
         game = GlobalGameState(
             game_id="test_game",
@@ -47,9 +60,14 @@ def create_game(request: CreateGameRequest):
         )
 
         manager = GameManager(game)
+
+        print("[Game Create] GameManager 시작", flush=True)
+
         manager.start_game(
             mafia_count=request.mafia_count
         )
+
+        print("[Game Create] GameManager 성공", flush=True)
 
         actions = ActionManager(manager)
 
@@ -80,6 +98,7 @@ def create_game(request: CreateGameRequest):
 
 
     except ValueError as error:
+        print(f"[Game Create] 오류: {error}", flush=True)
         raise HTTPException(
             status_code=400,
             detail=str(error)
