@@ -1,13 +1,16 @@
 using UnityEngine;
+using UnityEngine.Tilemaps;
 
-// Main Camera에 붙이는 스크립트: 캐릭터를 따라가되 맵 밖의 빈 공간은 비추지 않음
+// Main Camera에 붙이는 스크립트: 플레이어를 따라가되 RAF 맵의 경계 안으로 카메라를 제한
 public class CameraFollow : MonoBehaviour
 {
-    public Transform target;            // human_0
-    public SpriteRenderer background;   // background_0
-    Camera cam;
+    public Transform target;              // human_0
+    public SpriteRenderer background;     // 기존 배경 (호환성 유지, RAF Tilemap이 없을 때만 사용)
+    public Tilemap mapBoundsTilemap;       // RAF_background > Grid > Floor
 
-    void Start()
+    private Camera cam;
+
+    void Awake()
     {
         cam = GetComponent<Camera>();
     }
@@ -19,20 +22,54 @@ public class CameraFollow : MonoBehaviour
         float x = target.position.x;
         float y = target.position.y;
 
-        if (background != null)
+        Bounds bounds;
+        bool hasBounds = false;
+
+        if (mapBoundsTilemap != null)
         {
-            Bounds b = background.bounds;
+            // Tilemap의 셀 범위를 월드 좌표로 변환한다.
+            // RAF의 일반적인 축 정렬 Rectangular Tilemap 기준.
+            BoundsInt cells = mapBoundsTilemap.cellBounds;
+            if (cells.size.x > 0 && cells.size.y > 0)
+            {
+                Vector3 a = mapBoundsTilemap.CellToWorld(cells.min);
+                Vector3 b = mapBoundsTilemap.CellToWorld(cells.max);
+                Vector3 min = Vector3.Min(a, b);
+                Vector3 max = Vector3.Max(a, b);
+                bounds = new Bounds((min + max) * 0.5f, max - min);
+                hasBounds = true;
+            }
+            else
+            {
+                bounds = default(Bounds);
+            }
+        }
+        else
+        {
+            bounds = default(Bounds);
+        }
+
+        if (!hasBounds && background != null)
+        {
+            bounds = background.bounds;
+            hasBounds = true;
+        }
+
+        if (hasBounds && cam != null && cam.orthographic)
+        {
             float halfH = cam.orthographicSize;
             float halfW = halfH * cam.aspect;
 
-            float minX = b.min.x + halfW, maxX = b.max.x - halfW;
-            float minY = b.min.y + halfH, maxY = b.max.y - halfH;
+            float minX = bounds.min.x + halfW;
+            float maxX = bounds.max.x - halfW;
+            float minY = bounds.min.y + halfH;
+            float maxY = bounds.max.y - halfH;
 
-            // 맵이 화면보다 작으면 중앙에 고정, 아니면 가장자리 밖이 안 보이게 제한
-            x = minX > maxX ? b.center.x : Mathf.Clamp(x, minX, maxX);
-            y = minY > maxY ? b.center.y : Mathf.Clamp(y, minY, maxY);
+            x = minX > maxX ? bounds.center.x : Mathf.Clamp(x, minX, maxX);
+            y = minY > maxY ? bounds.center.y : Mathf.Clamp(y, minY, maxY);
         }
 
-        transform.position = new Vector3(x, y, -10f);
+        // 기존 카메라 Z값을 유지한다.
+        transform.position = new Vector3(x, y, transform.position.z);
     }
 }

@@ -47,7 +47,7 @@ async function createPythonGame(aiCount = 4, mafiaCount = 1) {
   });
 
   return parsePythonResponse(response);
-
+}
 
 async function requestPython(path, method = "GET", body = null) {
   const options = {
@@ -115,4 +115,3 @@ module.exports = {
   finalizePythonVoting,
   getPythonGameState
 };
-

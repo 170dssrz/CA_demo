@@ -290,3 +290,80 @@ def get_game_state(game_id: str):
         ),
         "players": manager.roles.get_public_roster()
     }
+
+# -----------------------------
+# ARTEM-inspired episodic memory endpoints (Unity integration step 1)
+# -----------------------------
+from pathlib import Path
+import os
+import sqlite3
+from uuid import uuid4
+from memory.memory_event import MemoryEvent, MemorySource
+from memory.memory_store import MemoryStore
+
+MEMORY_DB_PATH = os.getenv(
+    "MEMORY_DB_PATH", str(Path(__file__).resolve().parent / "memory.db")
+)
+
+
+class RecordMemoryRequest(BaseModel):
+    observer_id: str
+    game_time: float
+    location: str
+    actor_id: str
+    event_type: str
+    content: str
+    target_id: str | None = None
+    source: MemorySource = MemorySource.OBSERVATION
+    informant_id: str | None = None
+    event_id: str | None = None
+
+
+def _check_memory_game(game_id: str, observer_id: str):
+    game_data = games.get(game_id)
+    if game_data is None:
+        raise HTTPException(status_code=404, detail="게임을 찾을 수 없습니다.")
+    if observer_id not in game_data["agents"]:
+        raise HTTPException(status_code=404, detail="해당 게임에 AI 관찰자가 없습니다.")
+    return game_data
+
+
+@app.post("/games/{game_id}/memories", status_code=201)
+def record_memory(game_id: str, request: RecordMemoryRequest):
+    _check_memory_game(game_id, request.observer_id)
+    game = games[game_id]["manager"].game
+    if request.actor_id not in game.players:
+        raise HTTPException(status_code=400, detail="존재하지 않는 행동자입니다.")
+    if request.target_id is not None and request.target_id not in game.players:
+        raise HTTPException(status_code=400, detail="존재하지 않는 대상입니다.")
+    if request.informant_id is not None and request.informant_id not in game.players:
+        raise HTTPException(status_code=400, detail="존재하지 않는 전달자입니다.")
+    try:
+        event = MemoryEvent(
+            event_id=request.event_id or uuid4().hex,
+            game_id=game_id,
+            game_time=request.game_time,
+            location=request.location,
+            actor_id=request.actor_id,
+            target_id=request.target_id,
+            event_type=request.event_type,
+            content=request.content,
+            observer_id=request.observer_id,
+            source=request.source,
+            informant_id=request.informant_id,
+        )
+        MemoryStore(MEMORY_DB_PATH).save(event)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=409, detail="이미 저장된 사건 ID입니다.")
+    return {"ok": True, "event": event.model_dump(mode="json")}
+
+
+@app.get("/games/{game_id}/memories/{observer_id}")
+def list_memories(game_id: str, observer_id: str):
+    _check_memory_game(game_id, observer_id)
+    events = MemoryStore(MEMORY_DB_PATH).get_memories(game_id, observer_id)
+    return {"game_id": game_id, "observer_id": observer_id,
+            "count": len(events),
+            "events": [e.model_dump(mode="json") for e in events]}

@@ -6,6 +6,7 @@
 // - 테스트: .env에 MOCK_AI=1 을 넣으면 Claude API 없이 가짜 답장으로 연결만 확인할 수 있음
 
 require('dotenv').config();
+console.log("★★★ 수정한 server.js 실행 확인 ★★★", __filename);
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -196,6 +197,24 @@ const MAX_AI = Number(process.env.MAX_AI) || 4;
 const rosters = new Map(); // roomId -> [{ name, spriteIndex, traits, goal, memory, relations, ... }]
 
 const gameIds = new Map(); // roomId -> Python game_id
+
+// Python 서버에서 특정 AI의 시공간 기억 조회
+async function getSpatialMemories(gameId, observerId) {
+  if (!gameId || !observerId) return [];
+
+  const url =
+    `http://127.0.0.1:8000/games/${encodeURIComponent(gameId)}` +
+    `/memories/${encodeURIComponent(observerId)}`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`기억 조회 실패: HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  return Array.isArray(data.events) ? data.events : [];
+}
 
 
 // 각 AI가 속으로만 품는 목표 (플레이어에겐 안 보임). 이게 "먼저 행동하는 이유"가 된다.
@@ -553,6 +572,9 @@ const PROACTIVE_MOCK = ['근데 아까부터 조용한 사람 있지 않아?', '
 
 // opts.proactive = true 면 누가 말을 걸지 않았어도 AI가 먼저 말을 꺼냄. 말하지 않기로 하면 null
 async function generateReply(roomId, aiName, opts = {}) {
+
+  console.log("★★★ 수정한 server.js 실행 확인 ★★★", __filename);
+
   if (MOCK_AI) {
     if (opts.proactive) return pick(PROACTIVE_MOCK);
     const samples = ['ㅇㅇ 들었어', '음.. 그래?', '그건 좀 의심스러운데', '나는 잘 모르겠어', 'ㅋㅋ 그럴 수도'];
@@ -562,12 +584,65 @@ async function generateReply(roomId, aiName, opts = {}) {
   const log = getLog(roomId);
   const query = log.length ? log[log.length - 1].text : '';
   const messages = buildMessagesFor(roomId, aiName);
-  if (opts.proactive) messages.push({ role: 'user', content: PROACTIVE_NUDGE });
+
+  if (opts.proactive) {
+    messages.push({ role: 'user', content: PROACTIVE_NUDGE });
+  }
+
+  // 현재 AI의 고유 ID 확인
+  const ai = (rosters.get(roomId) || [])
+    .find((a) => a.name === aiName);
+
+  const gameId = gameIds.get(roomId);
+
+  console.log(
+  `[기억 연결 확인] roomId=${roomId}, gameId=${gameId}, aiName=${aiName}, playerId=${ai?.playerId}`
+);
+
+  let spatialMemoryText = '';
+
+  if (gameId && ai?.playerId) {
+    try {
+      const events = await getSpatialMemories(gameId, ai.playerId);
+
+      // 가장 최근 사건 최대 15개
+      const recent = [...events]
+        .sort((a, b) => Number(b.game_time) - Number(a.game_time))
+        .slice(0, 15);
+
+      spatialMemoryText = recent.length
+        ? recent.map((e) =>
+            `- 시간 ${e.game_time}초, 위치 ${e.location}, ` +
+            `사건: ${e.content}`
+          ).join('\n')
+        : '(직접 목격한 사건이 아직 없음)';
+
+      console.log(
+        `[시공간 기억 조회] ${aiName}(${ai.playerId}): ${events.length}개`
+      );
+    } catch (error) {
+      console.warn(
+        `[시공간 기억 조회 실패] ${aiName}: ${error.message}`
+      );
+      spatialMemoryText = '(기억 서버 조회 실패: 목격 여부를 확인할 수 없음)';
+    }
+  }
+
+  const baseSystemPrompt = getSystemPrompt(roomId, aiName, query);
+
+  const systemPrompt = spatialMemoryText
+    ? baseSystemPrompt +
+      '\n\n[네가 직접 목격한 시공간 기억]\n' +
+      spatialMemoryText +
+      '\n위 기록은 네가 직접 목격한 사건이다. ' +
+      '목격한 사람, 시간, 장소에 관한 질문에는 이 기록을 근거로 답한다. ' +
+      '기록에 없는 목격 사실은 만들어내지 않는다.'
+    : baseSystemPrompt;
 
   let reply = await callClaude({
     model: MODEL,
     max_tokens: 512,
-    system: getSystemPrompt(roomId, aiName, query),
+    system: systemPrompt,
     messages,
   });
 
@@ -1094,6 +1169,7 @@ app.get('/api/debug', (req, res) => {
 });
 
 app.post('/api/chat', rateLimit, async (req, res) => {
+  console.log("★★★ Unity 채팅 요청 도착 ★★★", req.body.roomId);
   const body = req.body || {};
   const roomId = getRoomId(body.roomId);
   const sender = cleanName(body.sender) || '익명';

@@ -2,27 +2,47 @@
 using TMPro;
 using UnityEngine;
 
-// AI 프리팹에 붙이는 스크립트
 public class AICharacter : MonoBehaviour
 {
-    public string playerId;     // Python 게임에서 사용하는 고유 ID
+    public string playerId;
     public string displayName;
     public TMP_Text nameLabel;
 
     public void Setup(string name, Sprite sprite)
     {
-        displayName = name;
-        gameObject.name = name;
-        GetComponent<SpriteRenderer>().sprite = sprite;
+        SetupName(name);
 
-        if (nameLabel != null)
-            nameLabel.text = name;
+        // 기존 Sprite 캐릭터 지원
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+
+        if (sr != null && sprite != null)
+        {
+            sr.sprite = sprite;
+        }
     }
 
-    // Python의 playerId 저장
+    // SPUM 캐릭터용 초기화
+    public void SetupSPUM(string name)
+    {
+        SetupName(name);
+    }
+
+    private void SetupName(string name)
+    {
+        displayName = name;
+        gameObject.name = name;
+
+        if (nameLabel != null)
+        {
+            nameLabel.text = name;
+        }
+    }
+
     public void SetPlayerId(string id)
     {
         playerId = id;
-        Debug.Log($"[AICharacter] {displayName} / ID: {playerId}");
+        Debug.Log(
+            $"[AICharacter] {displayName} / ID: {playerId}"
+        );
     }
 }

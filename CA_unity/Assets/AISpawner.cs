@@ -1,44 +1,147 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Tilemaps;
 
-// 서버가 정해준 명단(이름, 이미지 번호)대로 AI를 만들어 주는 스크립트.
-// 예전의 Start()에서 Spawn(3) 하던 부분은 없앴어요. 이제 GameServer가 명단을 받아서 호출해요.
+// 서버 명단에 따라 AI를 생성하고 생성한 AI 목록을 관리한다.
 public class AISpawner : MonoBehaviour
 {
+    // 기존 캐릭터 방식도 유지 (Inspector 연결 보존)
     public GameObject aiPrefab;
-    public Sprite[] sprites;            // AI가 쓸 수 있는 이미지 목록 (서버가 이 중 번호를 골라줘요)
+    public Sprite[] sprites;
     public SpriteRenderer background;
 
-    // 지금 있는 AI를 전부 지우고, 명단대로 새로 만든다
+    // 등록된 SPUM 프리팹 중 매 AI마다 무작위 선택 (중복 허용)
+    public GameObject[] spumPrefabs;
+
+    [Header("RAF AI 이동 가능 타일맵")]
+    public Tilemap walkableTilemap;
+
+    [Header("생성 위치 충돌 검사")]
+    public LayerMask blockingLayers;
+    [Min(0f)] public float spawnClearanceRadius = 0.25f;
+
+    private readonly List<Vector3> validSpawnPositions = new List<Vector3>();
+
+    private readonly List<AICharacter> spawnedAI = new List<AICharacter>();
+    public IReadOnlyList<AICharacter> SpawnedAI => spawnedAI;
+    private readonly List<GameObject> spawnedRoots = new List<GameObject>();
+
     public void SpawnFromRoster(GameServer.AiData[] roster)
     {
-        if (aiPrefab == null || sprites == null || sprites.Length == 0)
+        bool useSpum = spumPrefabs != null && spumPrefabs.Length > 0;
+
+        if (!useSpum && (aiPrefab == null || sprites == null || sprites.Length == 0))
         {
-            Debug.LogError("AISpawner: Ai Prefab과 Sprites를 먼저 연결해주세요.");
+            Debug.LogError("AISpawner: SPUM Prefabs 또는 기존 Ai Prefab과 Sprites를 연결해주세요.");
+            return;
+        }
+        if (roster == null)
+        {
+            Debug.LogError("AISpawner: 서버 명단이 없습니다.");
             return;
         }
 
-        foreach (var old in FindObjectsByType<AICharacter>())
-            Destroy(old.gameObject);
+        if (walkableTilemap == null)
+        {
+            Debug.LogError("AISpawner: Walkable Tilemap에 AI_Walkable을 연결해주세요.");
+            return;
+        }
+
+        // 이 Spawner가 이전에 생성한 AI만 제거한다.
+        foreach (var old in spawnedRoots)
+            if (old != null) Destroy(old);
+        spawnedRoots.Clear();
+        spawnedAI.Clear();
+
+        RebuildSpawnPositions();
+        if (validSpawnPositions.Count == 0)
+        {
+            Debug.LogError("AISpawner: AI_Walkable에 생성 가능한 타일이 없습니다. 타일과 Blocking Layers를 확인하세요.");
+            return;
+        }
 
         foreach (var data in roster)
         {
-            // 번호가 이미지 수보다 크더라도 안전하게 범위 안으로 맞춤
-            int idx = ((data.spriteIndex % sprites.Length) + sprites.Length) % sprites.Length;
+            GameObject prefab;
+            Sprite sprite = null;
 
-            var go = Instantiate(aiPrefab, RandomPos(), Quaternion.identity);
-            go.GetComponent<AIWander>().background = background;
+            if (useSpum)
+            {
+                int index = Random.Range(0, spumPrefabs.Length);
+                prefab = spumPrefabs[index];
+                if (prefab == null)
+                {
+                    Debug.LogError($"AISpawner: SPUM Prefabs[{index}]가 비어 있습니다.");
+                    continue;
+                }
+            }
+            else
+            {
+                int idx = ((data.spriteIndex % sprites.Length) + sprites.Length) % sprites.Length;
+                prefab = aiPrefab;
+                sprite = sprites[idx];
+            }
 
-            AICharacter character = go.GetComponent<AICharacter>();
-            
-            character.Setup(data.name, sprites[idx]);
+            if (!TryRandomPos(out Vector3 spawnPosition))
+            {
+                Debug.LogError("AISpawner: 생성 가능한 위치를 찾지 못했습니다.");
+                continue;
+            }
+
+            var go = Instantiate(prefab, spawnPosition, Quaternion.identity);
+            var wander = go.GetComponent<AIWander>();
+            var character = go.GetComponent<AICharacter>();
+            if (character == null)
+                character = go.GetComponentInChildren<AICharacter>(true);
+
+            if (character == null)
+            {
+                Debug.LogError($"AISpawner: Prefab '{prefab.name}'의 루트와 자식에서 AICharacter를 찾지 못했습니다. Prefab에 AICharacter를 추가해주세요.");
+                Destroy(go);
+                continue;
+            }
+
+            if (wander != null) wander.background = background;
+            if (useSpum) character.SetupSPUM(data.name);
+            else character.Setup(data.name, sprite);
+
             character.SetPlayerId(data.playerId);
+            spawnedAI.Add(character);
+            spawnedRoots.Add(go);
         }
     }
 
-    Vector3 RandomPos()
+    // 실제로 타일이 칠해진 셀의 중심 좌표만 후보로 저장한다.
+    private void RebuildSpawnPositions()
     {
-        if (background == null) return Vector3.zero;
-        Bounds b = background.bounds;
-        return new Vector3(Random.Range(b.min.x, b.max.x), Random.Range(b.min.y, b.max.y), 0f);
+        validSpawnPositions.Clear();
+        BoundsInt bounds = walkableTilemap.cellBounds;
+
+        foreach (Vector3Int cell in bounds.allPositionsWithin)
+        {
+            if (!walkableTilemap.HasTile(cell)) continue;
+
+            Vector3 worldPos = walkableTilemap.GetCellCenterWorld(cell);
+            worldPos.z = 0f;
+
+            // Blocking Layers가 설정된 경우 벽/장애물과 겹치는 위치는 제외.
+            if (blockingLayers.value != 0 &&
+                Physics2D.OverlapCircle((Vector2)worldPos, spawnClearanceRadius, blockingLayers) != null)
+                continue;
+
+            validSpawnPositions.Add(worldPos);
+        }
+    }
+
+    private bool TryRandomPos(out Vector3 position)
+    {
+        if (validSpawnPositions.Count == 0)
+        {
+            position = Vector3.zero;
+            return false;
+        }
+
+        position = validSpawnPositions[Random.Range(0, validSpawnPositions.Count)];
+        return true;
     }
 }

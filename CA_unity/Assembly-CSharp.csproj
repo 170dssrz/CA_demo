@@ -54,17 +54,33 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\AISpawner.cs" />
+    <Compile Include="Assets\AISightDetector.cs" />
+    <Compile Include="Assets\SPUM\Core\Script\Data\SpumAnimationClip.cs" />
+    <Compile Include="Assets\SPUM\Core\Script\Data\SPUM_ImprovedClassData.cs" />
+    <Compile Include="Assets\SPUM\Core\Script\Data\SpritePos.cs" />
     <Compile Include="Assets\AIWander.cs" />
     <Compile Include="Assets\MeetingManager.cs" />
     <Compile Include="Assets\AICharacter.cs" />
+    <Compile Include="Assets\SPUM\Core\Script\Data\SPUM_AnimationData.cs" />
+    <Compile Include="Assets\SPUM\Sample\Script\PlayerObj.cs" />
+    <Compile Include="Assets\SPUM\Core\Script\Data\SpumPackage.cs" />
+    <Compile Include="Assets\SPUM\Core\Script\Data\PreviewMatchingElement.cs" />
+    <Compile Include="Assets\SPUM\Sample\Script\PlayerManager.cs" />
+    <Compile Include="Assets\SPUM\Core\Script\Data\SPUM_CustomStyleData.cs" />
+    <Compile Include="Assets\SPUM\Core\Script\Data\SPUM_Prefabs.cs" />
+    <Compile Include="Assets\VotingManager.cs" />
+    <Compile Include="Assets\SPUM\Core\Script\Data\SPUM_ImprovedStyleData.cs" />
     <Compile Include="Assets\ChatUI.cs" />
     <Compile Include="Assets\CameraFollow.cs" />
+    <Compile Include="Assets\SPUM\Core\Script\Data\SPUM_MatchingList.cs" />
+    <Compile Include="Assets\SPUM\Core\Script\Data\SpumTextureData.cs" />
     <Compile Include="Assets\PlayerMove.cs" />
     <Compile Include="Assets\GameServer.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets\TextMesh Pro\Shaders\TMPro.cginc" />
     <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile Overlay.shader" />
+    <None Include="Assets\SPUM\ReadMe - 3.1.1.txt" />
     <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile-2-Pass.shader" />
     <None Include="Assets\TextMesh Pro\Shaders\TMP_Bitmap.shader" />
     <None Include="Assets\TextMesh Pro\Shaders\TMPro_Mobile.cginc" />
@@ -707,6 +723,10 @@
       <HintPath>Library\PackageCache\com.unity.nuget.mono-cecil@ecb9724e46ff\Mono.Cecil.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>Library\PackageCache\com.unity.nuget.newtonsoft-json@4dfd81071c64\Runtime\Newtonsoft.Json.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="netstandard">
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.6.4f1\Editor\Data\NetStandard\ref\2.1.0\netstandard.dll</HintPath>
       <Private>False</Private>
@@ -1281,6 +1301,10 @@
     </Reference>
     <Reference Include="Unity.InternalAPIEditorBridge.001">
       <HintPath>Library\ScriptAssemblies\Unity.InternalAPIEditorBridge.001.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Unity.VSCode.Editor">
+      <HintPath>Library\ScriptAssemblies\Unity.VSCode.Editor.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.2D.Common.Editor">

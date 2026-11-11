@@ -1,0 +1,46 @@
+﻿question_type,question,method,model,expected_event_ids,retrieved_event_ids,retrieved_count,answer,status,answer_correct_manual
+person,AI 2를 목격한 사건은?,LLM_no_memory,claude-sonnet-5-5,e1|e3,,0,제 기억으로는 확인할 수 없습니다.,ok,
+person,AI 2를 목격한 사건은?,RAG,claude-sonnet-5-5,e1|e3,e3|e1,2,"AI 2를 목격한 사건은 두 건이며, 시간 순서대로 정리하면 다음과 같습니다.
+
+1. 10.0초 (e1): 식당에서 AI 2를 직접 목격했습니다.
+2. 40.0초 (e3): 복도에서 AI 2를 직접 목격했습니다.
+
+두 건 모두 제가 직접 관찰한 내용입니다.",ok,
+person,AI 2를 목격한 사건은?,ARTEM_inspired,claude-sonnet-5-5,e1|e3,e1|e3,2,"AI 2를 목격한 사건은 두 건이며, 모두 제가 직접 관찰한 기록입니다.
+
+1. 10.0초, 식당(cafeteria): AI 2를 식당에서 목격했습니다. (e1)
+2. 40.0초, 복도(hallway): AI 2를 복도에서 목격했습니다. (e3)
+
+가장 최근 목격은 40.0초 복도입니다.",ok,
+location,창고에서 목격한 사건은?,LLM_no_memory,claude-sonnet-5-5,e2|e4,,0,제 기억으로는 확인할 수 없습니다.,ok,
+location,창고에서 목격한 사건은?,RAG,claude-sonnet-5-5,e2|e4,e3|e5,2,"제 기억으로는 확인할 수 없습니다. 기록에 창고에서 목격한 사건은 없고, 제가 직접 목격한 것은 복도에서 AI 2를(40.0초), 식당에서 AI 3을(70.0초) 본 일뿐입니다.",ok,
+location,창고에서 목격한 사건은?,ARTEM_inspired,claude-sonnet-5-5,e2|e4,e2|e4,2,"창고에서 목격한 사건은 다음과 같습니다(시간순).
+
+1. 25.0초: AI 3을 창고에서 목격했습니다. (직접 관찰)
+2. 55.0초: AI 4를 창고에서 목격했습니다. (직접 관찰)
+
+그 외의 사건은 제 기억으로는 확인할 수 없습니다.",ok,
+latest-person,AI 2를 가장 최근에 목격한 사건은?,LLM_no_memory,claude-sonnet-5-5,e3,,0,제 기억으로는 확인할 수 없습니다. 제공된 기억 기록이 없어서 AI 2를 마지막으로 목격한 사건이 무엇인지 말씀드릴 수 없습니다.,ok,
+latest-person,AI 2를 가장 최근에 목격한 사건은?,RAG,claude-sonnet-5-5,e3,e3,1,"가장 최근에 AI 2를 목격한 사건은 e3입니다. 게임 시간 40.0초에 복도에서 AI 2를 직접 목격했습니다. 제공된 기록에는 이 사건 하나뿐이라, 이보다 나중의 목격 기록은 제 기억으로는 확인할 수 없습니다.",ok,
+latest-person,AI 2를 가장 최근에 목격한 사건은?,ARTEM_inspired,claude-sonnet-5-5,e3,e3,1,"가장 최근에 AI 2를 목격한 사건은 e3입니다. 게임 시간 40.0초에 복도에서 AI 2를 직접 목격했습니다. 제공된 기록에는 이 사건 하나만 있어서, 그 이후의 목격 여부는 제 기억으로는 확인할 수 없습니다.",ok,
+latest-overall,가장 최근에 목격한 사건은?,LLM_no_memory,claude-sonnet-5-5,e5,,0,제 기억으로는 확인할 수 없습니다.,ok,
+latest-overall,가장 최근에 목격한 사건은?,RAG,claude-sonnet-5-5,e5,e3,1,가장 최근에 목격한 사건은 40.0초에 복도에서 AI 2를 본 것입니다. 제가 직접 관찰한 내용입니다. 제공된 기록에는 이 사건 하나뿐이라 다른 사건과 비교할 수는 없습니다.,ok,
+latest-overall,가장 최근에 목격한 사건은?,ARTEM_inspired,claude-sonnet-5-5,e5,e5,1,"가장 최근에 목격한 사건은 70.0초에 식당에서 AI 3을 직접 목격한 것입니다. 제공된 기록에는 이 사건만 있어서, 그 이후의 다른 목격 사건은 제 기억으로는 확인할 수 없습니다.",ok,
+chronological-person,AI 2를 목격한 사건을 시간순으로 나열해 줘.,LLM_no_memory,claude-sonnet-5-5,e1|e3,,0,제 기억으로는 확인할 수 없습니다. 제공된 기억 기록이 없어서 AI 2를 목격한 사건을 나열할 수 없습니다.,ok,
+chronological-person,AI 2를 목격한 사건을 시간순으로 나열해 줘.,RAG,claude-sonnet-5-5,e1|e3,e3|e2,2,"AI 2를 목격한 사건은 기록상 한 건입니다.
+
+1. game_time 40.0초: 복도에서 AI 2를 직접 목격했습니다. (출처: 관찰, 사건 e3)
+
+그 외에 AI 2를 목격한 기록은 제 기억으로는 확인할 수 없습니다.",ok,
+chronological-person,AI 2를 목격한 사건을 시간순으로 나열해 줘.,ARTEM_inspired,claude-sonnet-5-5,e1|e3,e1|e3,2,"AI 2를 목격한 사건을 game_time 오름차순으로 정리하면 다음과 같습니다.
+
+1. 10.0초: 식당에서 AI 2를 직접 목격했습니다. (event_id=e1)
+2. 40.0초: 복도에서 AI 2를 직접 목격했습니다. (event_id=e3)",ok,
+person-3,AI 3을 목격한 사건은?,LLM_no_memory,claude-sonnet-5-5,e2|e5,,0,제 기억으로는 확인할 수 없습니다.,ok,
+person-3,AI 3을 목격한 사건은?,RAG,claude-sonnet-5-5,e2|e5,e2|e4,2,AI 3을 창고에서 직접 목격했습니다. 게임 시간 25.0초에 있었던 일입니다(event_id=e2).,ok,
+person-3,AI 3을 목격한 사건은?,ARTEM_inspired,claude-sonnet-5-5,e2|e5,e2|e5,2,"AI 3을 목격한 기록은 두 건이며, 모두 제가 직접 관찰한 내용입니다.
+
+1. 25.0초, 창고(storage): AI 3을 목격했습니다. (e2)
+2. 70.0초, 식당(cafeteria): AI 3을 목격했습니다. (e5)
+
+가장 최근 목격은 70.0초 식당입니다.",ok,
