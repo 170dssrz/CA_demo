@@ -2,6 +2,37 @@
 const PYTHON_URL =
   process.env.PYTHON_URL || "http://127.0.0.1:8000";
 
+async function parsePythonResponse(response) {
+  const raw = await response.text();
+
+  let data;
+
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    const detail = data
+      ? JSON.stringify(data)
+      : raw.slice(0, 500);
+
+    throw new Error(
+      `Python API 오류 (${response.status}): ${detail}`
+    );
+  }
+
+  if (data === null) {
+    throw new Error(
+      `Python API 응답이 JSON이 아닙니다. ` +
+      `(HTTP ${response.status}): ${raw.slice(0, 500)}`
+    );
+  }
+
+  return data;
+}
+
 async function createPythonGame(aiCount = 4, mafiaCount = 1) {
   const response = await fetch(`${PYTHON_URL}/games`, {
     method: "POST",
@@ -15,14 +46,7 @@ async function createPythonGame(aiCount = 4, mafiaCount = 1) {
     signal: AbortSignal.timeout(30000)
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(JSON.stringify(data));
-  }
-
-  return data;
-}
+  return parsePythonResponse(response);
 
 
 async function requestPython(path, method = "GET", body = null) {
@@ -39,13 +63,7 @@ async function requestPython(path, method = "GET", body = null) {
   }
 
   const response = await fetch(`${PYTHON_URL}${path}`, options);
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(JSON.stringify(data));
-  }
-
-  return data;
+  return parsePythonResponse(response);
 }
 
 // 회의 시작

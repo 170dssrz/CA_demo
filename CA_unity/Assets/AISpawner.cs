@@ -27,7 +27,11 @@ public class AISpawner : MonoBehaviour
 
             var go = Instantiate(aiPrefab, RandomPos(), Quaternion.identity);
             go.GetComponent<AIWander>().background = background;
-            go.GetComponent<AICharacter>().Setup(data.name, sprites[idx]);
+
+            AICharacter character = go.GetComponent<AICharacter>();
+            
+            character.Setup(data.name, sprites[idx]);
+            character.SetPlayerId(data.playerId);
         }
     }
 

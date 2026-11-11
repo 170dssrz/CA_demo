@@ -1,4 +1,5 @@
-
+from state.player_state import PlayerState
+from state.enums import PlayerType, PlayerRole, Team
 from fastapi import FastAPI
 
 app = FastAPI(
@@ -47,6 +48,22 @@ def create_game(request: CreateGameRequest):
         players, agents = factory.create_agents(
             request.ai_count
         )
+
+        # Unity에서 조작하는 사람 플레이어 등록
+        human_id = "human_0"
+
+        players[human_id] = PlayerState(
+            player_id=human_id,
+            name="나",
+            player_type=PlayerType.HUMAN,
+            role=PlayerRole.CITIZEN,
+            team=Team.CITIZEN
+        )
+
+        print(
+            f"[Game Create] 사람 플레이어 등록: {human_id}",
+            flush=True
+)
 
         print(
             f"[Game Create] AgentFactory 성공: {len(players)}명",

@@ -4,12 +4,68 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using System.Text;
+using UnityEngine.Networking;
 
 // 어몽어스식 "회의 소집" 기능.
 // 버튼을 누르면 모두(플레이어 + AI)가 한자리에 모이고 채팅창이 열려요.
 // 정해진 시간이 지나거나 "회의 종료" 버튼을 누르면 다시 흩어져요.
 public class MeetingManager : MonoBehaviour
 {
+    [Header("Python 게임 연결")]
+    public GameServer gameServer;
+
+    [System.Serializable]
+    private class MeetingStartRequest
+    {
+        public string roomId;
+        public string callerId;
+        public string reason;
+    }
+
+    private IEnumerator NotifyPythonMeeting()
+    {
+        if (gameServer == null)
+        {
+            Debug.LogError("[Meeting] GameServer가 연결되지 않았습니다.");
+            yield break;
+        }
+
+        var request = new MeetingStartRequest
+        {
+            roomId = gameServer.roomId,
+            callerId = "ai_001",
+            reason = "emergency"
+        };
+
+        string json = JsonUtility.ToJson(request);
+
+        using (var www = new UnityWebRequest(
+            gameServer.Url("/api/game/meeting/start"), "POST"))
+        {
+            www.uploadHandler = new UploadHandlerRaw(
+                Encoding.UTF8.GetBytes(json));
+            www.downloadHandler = new DownloadHandlerBuffer();
+            www.SetRequestHeader("Content-Type", "application/json");
+            www.timeout = 90;
+
+            yield return www.SendWebRequest();
+
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogError(
+                    "[Meeting] Python 회의 시작 실패: " +
+                    www.error + " / " + www.downloadHandler.text);
+            }
+            else
+            {
+                Debug.Log(
+                    "[Meeting] Python 회의 시작 성공: " +
+                    www.downloadHandler.text);
+            }
+        }
+    }
+
     [Header("참가자")]
     public PlayerMove player;              // 플레이어 캐릭터(human_0)
 
@@ -48,6 +104,8 @@ public class MeetingManager : MonoBehaviour
     public void StartMeeting()
     {
         if (IsMeeting) return;
+
+        StartCoroutine(NotifyPythonMeeting());
         StartCoroutine(MeetingRoutine());
     }
 

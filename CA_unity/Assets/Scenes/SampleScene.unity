@@ -284,6 +284,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0b9bf5bba2134194eae34be2c1160af8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MeetingManager
+  gameServer: {fileID: 828587179}
   player: {fileID: 821384733}
   meetingPoint: {fileID: 2005360174}
   radius: 4
@@ -1320,7 +1321,7 @@ MonoBehaviour:
   serverUrl: https://ca-demo-jh4j.onrender.com
   roomId: main
   myName: "\uB098"
-  aiCount: 3
+  aiCount: 0
   spawner: {fileID: 1288273728}
   statusText: {fileID: 0}
   autoCheck: 1
