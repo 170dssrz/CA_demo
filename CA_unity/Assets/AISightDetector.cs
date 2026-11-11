@@ -19,7 +19,7 @@ public class AISightDetector : MonoBehaviour
     [Header("Python 기억 서버 (로컬 테스트)")]
     public bool sendToPython = true;
     public string pythonBaseUrl = "http://127.0.0.1:8000";
-    public string gameId = "test_game";
+    public GameServer gameServer;
 
     private float nextCheckTime;
     private readonly Dictionary<EntityId, float> lastReportedAt = new Dictionary<EntityId, float>();
@@ -88,7 +88,21 @@ public class AISightDetector : MonoBehaviour
 
     private IEnumerator SendMemory(MemoryRequest memory)
     {
-        string url = pythonBaseUrl.TrimEnd('/') + "/games/" + UnityWebRequest.EscapeURL(gameId) + "/memories";
+        if (gameServer == null)
+            gameServer = FindAnyObjectByType<GameServer>();
+
+        if (gameServer == null || string.IsNullOrEmpty(gameServer.currentGameId))
+        {
+            Debug.LogWarning("[기억 저장 대기] 현재 게임 ID가 아직 없습니다.", this);
+            yield break;
+        }
+
+        string gameId = gameServer.currentGameId;
+
+        string url = pythonBaseUrl.TrimEnd('/') +
+                    "/games/" +
+                    UnityWebRequest.EscapeURL(gameId) +
+                    "/memories";
 
         string json = JsonUtility.ToJson(memory);
 

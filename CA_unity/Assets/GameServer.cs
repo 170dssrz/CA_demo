@@ -14,6 +14,8 @@ public class GameServer : MonoBehaviour
     public string roomId = "main";
     public string myName = "나";
 
+    public string currentGameId = "";
+
     [Header("AI 생성")]
     public int aiCount = 0;          // 0이면 서버가 3~5명 중 랜덤으로 정함
     public AISpawner spawner;
@@ -34,7 +36,12 @@ public class GameServer : MonoBehaviour
     }
 
     [Serializable] public class RosterRequest { public string roomId; public int count; public int spriteCount; }
-    [Serializable] public class RosterResponse { public AiData[] roster; }
+    [Serializable]
+    public class RosterResponse
+    {
+        public AiData[] roster;
+        public string game_id;
+    }
     
     [Serializable]
     public class PythonPlayer
@@ -209,6 +216,16 @@ public class GameServer : MonoBehaviour
 
             
             currentRoster = res.roster;
+
+            currentGameId = res.game_id;
+
+            Debug.Log("[GameServer] 현재 게임 ID: " + currentGameId);
+
+            if (string.IsNullOrEmpty(currentGameId))
+            {
+                Debug.LogError("[GameServer] 서버에서 game_id를 받지 못했습니다.");
+                yield break;
+            }
 
             foreach (var ai in currentRoster)
             {
