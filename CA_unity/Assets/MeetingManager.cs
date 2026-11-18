@@ -24,7 +24,7 @@ public class MeetingManager : MonoBehaviour
     public CameraFollow cameraFollow;
 
     [Header("회의 설정")]
-    public float meetingSeconds = 90f;
+    public float meetingSeconds = 360f;
     public bool chatOnlyInMeeting = true;
 
     [Header("UI 연결")]

@@ -6435,7 +6435,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 0
   sendToPython: 1
-  pythonBaseUrl: http://127.0.0.1:8000
+  pythonBaseUrl: https://ai-backend-fmrg.onrender.com
   gameServer: {fileID: 0}
 --- !u!1 &6221972760893142309
 GameObject:
