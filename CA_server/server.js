@@ -252,7 +252,16 @@ const publicRoster = (roster) =>
 
 // 실험용 고정 Seed Memory: AI 순서별로 항상 동일한 페르소나를 사용한다.
 const FIXED_SEED_IDS = ['seed_001', 'seed_002', 'seed_003', 'seed_004'];
-const FIXED_SEED_FILE = path.join(__dirname, 'seed_personas_bigfive_fixed.json');
+// 우선순위: .env의 SEED_PERSONA_PATH → CAserver와 같은 위치의 AI-backend → CAserver 내부
+// Render 등 원격 서버의 파일은 로컬 경로로 읽을 수 없다.
+const SEED_CANDIDATES = [
+  process.env.SEED_PERSONA_PATH && path.resolve(__dirname, process.env.SEED_PERSONA_PATH),
+  path.resolve(__dirname, '..', 'AI-backend', 'data', 'seed_personas.json'),
+  path.resolve(__dirname, '..', 'AIbackend', 'data', 'seed_personas.json'),
+  path.join(__dirname, 'seed_personas.json')
+].filter(Boolean);
+const FIXED_SEED_FILE = SEED_CANDIDATES.find((file) => fs.existsSync(file)) || SEED_CANDIDATES[0];
+console.log('[Seed Memory] 파일 경로:', FIXED_SEED_FILE);
 
 function loadFixedSeeds() {
   const seeds = JSON.parse(fs.readFileSync(FIXED_SEED_FILE, 'utf8'));
