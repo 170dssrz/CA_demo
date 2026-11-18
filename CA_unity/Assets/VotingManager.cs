@@ -184,7 +184,11 @@ public class VotingManager : MonoBehaviour
                 submitted = true;
                 if (statusText != null) statusText.text = "투표 완료! 다른 플레이어의 투표를 기다리는 중...";
                 Debug.Log("[VotingUI] 서버 투표 제출 성공: human_0 → " + targetId);
+
+                StartCoroutine(FinalizeVoting());
             }
+
+
             else
             {
                 if (statusText != null) statusText.text = "투표 실패. 다시 시도해 주세요.";
@@ -201,6 +205,126 @@ public class VotingManager : MonoBehaviour
     {
         public bool ok;
     }
+
+
+    [Serializable]
+    private class FinalizeRequest
+    {
+        public string roomId;
+    }
+
+    [Serializable]
+    private class VotingResultData
+    {
+        public string eliminated_id;
+        public bool is_tie;
+        public int skip_count;
+    }
+
+    [Serializable]
+    private class FinalizeResponse
+    {
+        public bool ok;
+        public VotingResultData voting_result;
+    }
+
+    private IEnumerator FinalizeVoting()
+    {
+        // AI 투표가 끝날 시간을 기다린다.
+        // 아직 완료되지 않았다면 서버가 집계를 거부할 수 있다.
+        yield return new WaitForSeconds(3f);
+
+        string json = JsonUtility.ToJson(new FinalizeRequest
+        {
+            roomId = gameServer.roomId
+        });
+
+        using (var www = new UnityWebRequest(
+            gameServer.Url("/api/game/voting/finalize"), "POST"))
+        {
+            www.uploadHandler = new UploadHandlerRaw(
+                Encoding.UTF8.GetBytes(json));
+
+            www.downloadHandler = new DownloadHandlerBuffer();
+            www.SetRequestHeader("Content-Type", "application/json");
+            www.timeout = 30;
+
+            yield return www.SendWebRequest();
+
+            string response = www.downloadHandler.text;
+
+            if (www.result == UnityWebRequest.Result.Success)
+            {
+                Debug.Log("[Voting] 집계 서버 응답: " + response);
+
+                FinalizeResponse result =
+                    JsonUtility.FromJson<FinalizeResponse>(response);
+
+                if (result != null && result.ok && result.voting_result != null)
+                {
+                    string eliminatedId = result.voting_result.eliminated_id;
+
+                    if (string.IsNullOrEmpty(eliminatedId))
+                    {
+                        Debug.Log("[Voting] 추방된 플레이어 없음");
+
+                        if (statusText != null)
+                            statusText.text = "투표 결과: 추방된 플레이어가 없습니다.";
+                    }
+                    else
+                    {
+                        Debug.Log("[Voting] 추방된 플레이어: " + eliminatedId);
+
+                        string eliminatedName = eliminatedId;
+
+                        foreach (var ai in aiSpawner.SpawnedAI)
+                        {
+                            if (ai != null && ai.playerId == eliminatedId)
+                            {
+                                eliminatedName = ai.displayName;
+                                break;
+                            }
+                        }
+
+                        if (eliminatedId == "human_0" && gameServer != null)
+                            eliminatedName = gameServer.myName;
+
+                        if (statusText != null)
+                            statusText.text = "투표 결과: " + eliminatedName + " 추방!";
+
+                        if (eliminatedId != "human_0" && aiSpawner != null)
+                        {
+                            foreach (var ai in aiSpawner.SpawnedAI)
+                            {
+                                if (ai != null && ai.playerId == eliminatedId)
+                                {
+                                    ai.gameObject.SetActive(false);
+
+                                    Debug.Log("[Voting] 추방된 AI 비활성화: " + ai.displayName);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // 결과를 잠시 보여준 후 게임 재개
+                    yield return new WaitForSeconds(3f);
+
+                    if (meetingManager != null)
+                    {
+                        meetingManager.FinishVoting(false);
+                        Debug.Log("[Voting] 투표 종료, 게임 재개");
+                    }
+                }
+            }
+            else
+            {
+                Debug.LogError("[Voting] 집계 실패: " +
+                    www.error + " / " + response);
+            }
+        }
+    }
+
 
     private void HideVotingPanel()
     {

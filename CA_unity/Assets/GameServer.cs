@@ -10,7 +10,7 @@ using UnityEngine.Networking;
 public class GameServer : MonoBehaviour
 {
     [Header("서버")]
-    public string serverUrl = "https://ai-backend-fmrg.onrender.com";   // 배포 후엔 https://내서비스.onrender.com
+    public string serverUrl = "http://localhost:3000";   // 배포 후엔 https://내서비스.onrender.com
     public string roomId = "main";
     public string myName = "나";
 
@@ -139,11 +139,11 @@ public class GameServer : MonoBehaviour
                         restoring = false;
                     }
                     else if (!h.hasKey) Hud(Color.red, "서버에 API 키가 없어요 (.env 의 ANTHROPIC_API_KEY 확인)", "ERROR: no API key on server");
-                    else if (h.api == "error") Hud(Color.red, "Claude 오류: " + h.apiError, "ERROR: Claude call failed (see Console / server window)");
+                    else if (h.api == "error") Hud(Color.red, "Qwen 오류: " + h.apiError, "ERROR: Qwen call failed (see Console / server window)");
                     else if (h.mock) Hud(Color.yellow, "테스트 모드: AI가 가짜 답장을 해요 (.env 의 MOCK_AI 를 지우세요)", "MOCK mode (fake replies)");
-                    else Hud(Color.green, "연결됨 · AI " + h.rosterCount + "명 · Claude 정상", "OK: connected, AI " + h.rosterCount);
+                    else Hud(Color.green, "연결됨 · AI " + h.rosterCount + "명 · Qwen 정상", "OK: connected, AI " + h.rosterCount);
 
-                    if (h != null && h.api == "error") Debug.LogWarning("[GameServer] Claude 오류: " + h.apiError);
+                    if (h != null && h.api == "error") Debug.LogWarning("[GameServer] Qwen 오류: " + h.apiError);
                 }
             }
             yield return new WaitForSeconds(checkInterval);

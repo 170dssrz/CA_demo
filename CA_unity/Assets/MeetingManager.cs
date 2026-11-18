@@ -263,7 +263,43 @@ public class MeetingManager : MonoBehaviour
         SetChatVisible(false);
         SetMovement(false); // 투표 UI가 준비될 때까지 이동 제한
         Debug.Log("[Voting] Unity 투표 단계 진입 완료");
+
+        StartCoroutine(RequestAiVotes());
     }
+
+
+private IEnumerator RequestAiVotes()
+{
+    string json = JsonUtility.ToJson(new VotingStartRequest
+    {
+        roomId = gameServer.roomId
+    });
+
+    using (var www = new UnityWebRequest(
+        gameServer.Url("/api/game/voting/ai-votes"), "POST"))
+    {
+        www.uploadHandler = new UploadHandlerRaw(
+            Encoding.UTF8.GetBytes(json));
+
+        www.downloadHandler = new DownloadHandlerBuffer();
+        www.SetRequestHeader("Content-Type", "application/json");
+        www.timeout = 120;
+
+        yield return www.SendWebRequest();
+
+        if (www.result == UnityWebRequest.Result.Success)
+        {
+            Debug.Log("[Voting] AI 자동 투표 완료: " +
+                www.downloadHandler.text);
+        }
+        else
+        {
+            Debug.LogError("[Voting] AI 자동 투표 실패: " +
+                www.error + " / " + www.downloadHandler.text);
+        }
+    }
+}
+
 
     // 이후 VotingManager가 투표 집계 성공 후 호출할 수 있도록 준비한 메서드.
     // 서버의 최종 투표 처리 성공을 확인한 뒤에만 호출해야 한다.
